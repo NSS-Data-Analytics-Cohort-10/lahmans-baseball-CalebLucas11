@@ -127,10 +127,82 @@ WHERE yearID >= 1970
 GROUP BY yearid, teamid, franchname
 ORDER BY largest_wins ASC;
 
+SELECT
+    CASE
+        WHEN COUNT(*) > 0 THEN ROUND(COUNT(*) * 100.0 / COUNT(DISTINCT yearID), 2)
+        ELSE 0.00
+    END AS percentage
+FROM (
+    SELECT yearID
+    FROM teams
+    WHERE yearID >= 1970
+      AND yearID <> 1981 
+    GROUP BY yearID
+    HAVING MAX(w) = MIN(w)
+    AND MAX(wswin) = 'Y' 
+) AS most_wins_and_ws;
+
+
 -- 8. Using the attendance figures from the homegames table, find the teams and parks which had the top 5 average attendance per game in 2016 (where average attendance is defined as total attendance divided by number of games). Only consider parks where there were at least 10 games played. Report the park name, team name, and average attendance. Repeat for the lowest 5 average attendance.
+
+--TOP 5
+WITH AvgAttendance AS (
+    SELECT
+        h.park,
+        t.name AS team_name,
+        SUM(h.attendance) / COUNT(t.ghome) AS average_attendance
+    FROM homegames AS h
+    JOIN teams AS t ON h.team = t.teamid
+    WHERE t.yearid = 2016
+    GROUP BY h.park, t.name
+    HAVING COUNT(t.ghome) >= 10
+)
+SELECT park, team_name, average_attendance
+FROM AvgAttendance
+ORDER BY average_attendance DESC
+LIMIT 5;
+
+--BOTTOM 5
+WITH AvgAttendance AS (
+    SELECT
+        h.park,
+        t.name AS team_name,
+        SUM(h.attendance) / COUNT(t.ghome) AS average_attendance
+    FROM homegames AS h
+    JOIN teams AS t ON h.team = t.teamid
+    WHERE t.yearid = 2016
+    GROUP BY h.park, t.name
+    HAVING COUNT(t.ghome) >= 10
+)
+SELECT park, team_name, average_attendance
+FROM AvgAttendance
+ORDER BY average_attendance ASC
+LIMIT 5;
 
 
 -- 9. Which managers have won the TSN Manager of the Year award in both the National League (NL) and the American League (AL)? Give their full name and the teams that they were managing when they won the award.
+
+SELECT DISTINCT(CONCAT(namefirst, ' ', namelast)) AS full_name, a.yearid, app.teamid
+FROM awardsmanagers AS a
+LEFT JOIN people AS p
+USING (playerid)
+LEFT JOIN appearances AS app
+USING (playerid)
+LEFT JOIN 
+WHERE awardid = 'TSN Manager of the Year'
+AND p.playerid IN (
+    SELECT DISTINCT playerid
+    FROM awardsmanagers
+    WHERE awardid = 'TSN Manager of the Year'
+	AND lgid IN ('AL', 'NL')
+    GROUP BY playerid
+    HAVING COUNT(DISTINCT lgid) = 2
+);
+
+SELECT *
+FROM awardsmanagers
+WHERE awardid = 'TSN Manager of the Year'
+ORDER BY playerid
 
 -- 10. Find all players who hit their career highest number of home runs in 2016. Consider only players who have played in the league for at least 10 years, and who hit at least one home run in 2016. Report the players' first and last names and the number of home runs they hit in 2016.
 
