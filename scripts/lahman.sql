@@ -182,13 +182,12 @@ LIMIT 5;
 
 -- 9. Which managers have won the TSN Manager of the Year award in both the National League (NL) and the American League (AL)? Give their full name and the teams that they were managing when they won the award.
 
-SELECT DISTINCT(CONCAT(namefirst, ' ', namelast)) AS full_name, a.yearid, app.teamid
+--Need to pull in team without duplicating. 
+
+SELECT DISTINCT(CONCAT(namefirst, ' ', namelast)) AS full_name, a.yearid
 FROM awardsmanagers AS a
 LEFT JOIN people AS p
 USING (playerid)
-LEFT JOIN appearances AS app
-USING (playerid)
-LEFT JOIN 
 WHERE awardid = 'TSN Manager of the Year'
 AND p.playerid IN (
     SELECT DISTINCT playerid
@@ -196,7 +195,6 @@ AND p.playerid IN (
     WHERE awardid = 'TSN Manager of the Year'
 	AND lgid IN ('AL', 'NL')
     GROUP BY playerid
-    HAVING COUNT(DISTINCT lgid) = 2
 );
 
 SELECT *
@@ -206,6 +204,27 @@ ORDER BY playerid
 
 -- 10. Find all players who hit their career highest number of home runs in 2016. Consider only players who have played in the league for at least 10 years, and who hit at least one home run in 2016. Report the players' first and last names and the number of home runs they hit in 2016.
 
+SELECT CONCAT(p.namefirst, ' ', p.namelast) AS full_name, hr2016
+FROM (
+    SELECT playerid, MAX(hr) AS career_high_hr, SUM(hr) AS hr2016
+    FROM batting
+    WHERE yearid = 2016
+    GROUP BY playerid
+    HAVING SUM(hr) >= 1
+) AS player_hr2016
+JOIN people AS p ON player_hr2016.playerid = p.playerid
+WHERE EXISTS (
+    SELECT 1
+    FROM (
+        SELECT
+            playerid,
+            MAX(yearid::int) - MIN(yearid::int) AS years_played
+        FROM batting
+        GROUP BY playerid
+    ) AS player_years
+    WHERE player_years.playerid = player_hr2016.playerid
+    AND player_years.years_played >= 10
+);
 
 -- **Open-ended questions**
 
