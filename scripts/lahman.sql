@@ -179,6 +179,30 @@ FROM AvgAttendance
 ORDER BY average_attendance ASC
 LIMIT 5;
 
+WITH AvgAttendance AS (
+    SELECT
+        h.park,
+        t.name AS team_name,
+        SUM(h.attendance) / COUNT(t.ghome) AS average_attendance
+    FROM homegames AS h
+    JOIN teams AS t ON h.team = t.teamid
+    WHERE t.yearid = 2016
+    GROUP BY h.park, t.name
+    HAVING COUNT(t.ghome) >= 10
+)
+(
+	SELECT park, team_name, average_attendance
+FROM AvgAttendance
+ORDER BY average_attendance ASC
+LIMIT 5
+)
+UNION ALL
+(
+SELECT park, team_name, average_attendance
+FROM AvgAttendance
+ORDER BY average_attendance DESC
+LIMIT 5
+);
 
 -- 9. Which managers have won the TSN Manager of the Year award in both the National League (NL) and the American League (AL)? Give their full name and the teams that they were managing when they won the award.
 
@@ -216,9 +240,7 @@ JOIN people AS p ON player_hr2016.playerid = p.playerid
 WHERE EXISTS (
     SELECT 1
     FROM (
-        SELECT
-            playerid,
-            MAX(yearid::int) - MIN(yearid::int) AS years_played
+        SELECT playerid, MAX(yearid) - MIN(yearid) AS years_played
         FROM batting
         GROUP BY playerid
     ) AS player_years
@@ -229,6 +251,18 @@ WHERE EXISTS (
 -- **Open-ended questions**
 
 -- 11. Is there any correlation between number of wins and team salary? Use data from 2000 and later to answer this question. As you do this analysis, keep in mind that salaries across the whole league tend to increase together, so you may want to look on a year-by-year basis.
+
+WITH WinsSalaries AS (
+    SELECT t.yearID, t.teamID, SUM(t.W) AS total_wins, SUM(s.salary) AS total_salary
+    FROM teams t
+    JOIN salaries s ON t.teamID = s.teamID AND t.yearID = s.yearID
+    WHERE t.yearID >= 2000
+    GROUP BY t.yearID, t.teamID
+)
+SELECT yearID, CORR(total_wins, total_salary) AS correlation
+FROM WinsSalaries
+GROUP BY yearID
+ORDER BY yearID;
 
 -- 12. In this question, you will explore the connection between number of wins and attendance.
 --     <ol type="a">
