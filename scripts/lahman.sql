@@ -39,16 +39,7 @@ USING (schoolid)
 WHERE schoolid ILIKE '%vandy%' 
 GROUP BY full_name, playerid
 HAVING SUM(salary) IS NOT NULL
-ORDER BY total_salary DESC
-LIMIT 1;
-
-SELECT *
-FROM people
-LEFT JOIN salaries
-USING (playerid)
-LEFT JOIN collegeplaying
-USING (playerid)
-WHERE playerid LIKE 'priceda01'
+ORDER BY total_salary DESC;
 
 -- Answer: David Price, $81,851,296
 	
@@ -70,30 +61,17 @@ ORDER BY position;
    
 -- 5. Find the average number of strikeouts per game by decade since 1920. Round the numbers you report to 2 decimal places. Do the same for home runs per game. Do you see any trends?
 
---why does 1 pull decade, but 2 pulls year?
-
 SELECT
     CONCAT(ROUND((yearid - 1920) / 10) * 10 + 1920, '-', ROUND((yearid - 1920) / 10) * 10 + 1929) AS decade,
-    ROUND(AVG(so)/AVG(g), 2) AS avg_strikeouts,
-    ROUND(AVG(hr)/AVG(g), 2) AS avg_homeruns
+    ROUND(AVG(so)/AVG(g), 2) AS avg_so,
+    ROUND(AVG(hr)/AVG(g), 2) AS avg_hr
 FROM teams
 WHERE yearid >= 1920
 GROUP BY ROUND((yearid - 1920) / 10)
-ORDER BY decade;
-
-SELECT
-    CONCAT(ROUND(yearid), '-', ROUND(yearid)) AS decade,
-    ROUND(AVG(so)/AVG(g), 2) AS avg_strikeouts,
-    ROUND(AVG(hr)/AVG(g), 2) AS avg_homeruns
-FROM teams
-WHERE yearid >= 1920
-GROUP BY decade
-ORDER BY decade;  
-   
+ORDER BY decade;   
 
 -- 6. Find the player who had the most success stealing bases in 2016, where __success__ is measured as the percentage of stolen base attempts which are successful. (A stolen base attempt results either in a stolen base or being caught stealing.) Consider only players who attempted _at least_ 20 stolen bases.
 	
--- Need to double check this. 
 SELECT CONCAT(namefirst,' ', namelast) AS full_name, (SUM(sb)*100)/(SUM(sb)+SUM(cs)) AS ssb
 FROM people AS p
 LEFT JOIN appearances AS a
@@ -103,7 +81,8 @@ USING (teamid)
 WHERE a.yearid = 2016
 GROUP BY full_name
 HAVING (SUM(sb)*100)/(SUM(sb)+SUM(cs)) >= 20
-ORDER BY SUM(sb) DESC;
+ORDER BY SUM(sb) DESC
+LIMIT 1;
 
 --Answer: Eric Fryer, 79
 
@@ -113,7 +92,7 @@ SELECT yearid, teamid, franchname, MAX(w) AS largest_wins
 FROM teams
 LEFT JOIN teamsfranchises
 USING (franchid)
-WHERE yearID >= 1970
+WHERE yearid >= 1970
     AND wswin = 'N'
 GROUP BY yearid, teamid, franchname
 ORDER BY largest_wins DESC;
@@ -122,7 +101,8 @@ SELECT yearid, teamid, franchname, MIN(w) AS largest_wins
 FROM teams
 LEFT JOIN teamsfranchises
 USING (franchid)
-WHERE yearID >= 1970
+WHERE yearid >= 1970
+	AND yearid <> 1981
     AND wswin = 'Y'
 GROUP BY yearid, teamid, franchname
 ORDER BY largest_wins ASC;
@@ -142,6 +122,23 @@ FROM (
     AND MAX(wswin) = 'Y' 
 ) AS most_wins_and_ws;
 
+----------below is the equivilent of an oragnutan slapping his keyboard-----------
+
+SELECT
+    COUNT(*) AS mostw_wswin,
+    ROUND(COUNT(*) * 100.0 / COUNT(DISTINCT yearid), 2) AS percentage
+FROM (
+    SELECT
+        t.yearid,
+        MAX(t.w) AS max_wins,
+        MAX(CASE WHEN s.round = 'WS' THEN 'Y' ELSE 'N' END) AS ws_win
+    FROM teams AS t
+    LEFT JOIN seriespost S ON t.yearid = s.yearid
+    WHERE t.yearID BETWEEN 1970 AND 2016
+      AND t.yearID <> 1981
+    GROUP BY T.yearID
+) AS subquery
+WHERE ws_win = 'Y';
 
 -- 8. Using the attendance figures from the homegames table, find the teams and parks which had the top 5 average attendance per game in 2016 (where average attendance is defined as total attendance divided by number of games). Only consider parks where there were at least 10 games played. Report the park name, team name, and average attendance. Repeat for the lowest 5 average attendance.
 
@@ -273,10 +270,60 @@ ORDER BY yearID;
 
 --Homegame Attendance vs. Wins
 
+WITH WinsAttendance AS (
+    SELECT
+        t.teamID,
+        t.yearID,
+        SUM(t.W) AS total_wins,
+        AVG(h.attendance) AS average_attendance
+    FROM teams t
+    JOIN homegames h ON t.teamID = h.team
+    WHERE t.yearID = 2016
+    GROUP BY t.teamID, t.yearID
+)
+SELECT
+    CORR(total_wins, average_attendance) AS correlation
+FROM WinsAttendance;
+
 --World Series vs. Following Year Attendance
+
+WITH WorldSeriesWins AS (
+    SELECT
+        teamID,
+        yearID
+    FROM teams
+    WHERE WSWin = 'Y'  
+)
+SELECT
+    t.teamID,
+    wsw.yearID AS world_series_year,
+    t.yearID AS attendance_year,
+    AVG(h.attendance) AS average_attendance
+FROM teams t
+JOIN homegames h ON t.teamID = h.team
+JOIN WorldSeriesWins wsw ON t.teamID = wsw.teamID
+WHERE t.yearID IN (wsw.yearID - 1, wsw.yearID + 1)
+GROUP BY t.teamID, wsw.yearID, t.yearID
 
 --Playoffs vs. Following Year Attendance
 
+WITH PlayoffTeams AS (
+    SELECT
+        teamID,
+        yearID
+    FROM teams
+    WHERE DivWin = 'Y' OR WCWin = 'Y'  
+)
+SELECT
+    t.teamID,
+    pt.yearID AS playoff_year,
+    t.yearID AS attendance_year,
+    AVG(h.attendance) AS average_attendance
+FROM teams t
+JOIN homegames h ON t.teamID = h.team
+JOIN PlayoffTeams pt ON t.teamID = pt.teamID
+WHERE t.yearID IN (pt.yearID, pt.yearID + 1)
+GROUP BY t.teamID, pt.yearID, t.yearID
 
 -- 13. It is thought that since left-handed pitchers are more rare, causing batters to face them less often, that they are more effective. Investigate this claim and present evidence to either support or dispute this claim. First, determine just how rare left-handed pitchers are compared with right-handed pitchers. Are left-handed pitchers more likely to win the Cy Young Award? Are they more likely to make it into the hall of fame?
 
