@@ -88,6 +88,7 @@ LIMIT 1;
 
 -- 7.  From 1970 – 2016, what is the largest number of wins for a team that did not win the world series? What is the smallest number of wins for a team that did win the world series? Doing this will probably result in an unusually small number of wins for a world series champion – determine why this is the case. Then redo your query, excluding the problem year. How often from 1970 – 2016 was it the case that a team with the most wins also won the world series? What percentage of the time?
 
+--- first part
 SELECT yearid, teamid, franchname, MAX(w) AS largest_wins
 FROM teams
 LEFT JOIN teamsfranchises
@@ -97,6 +98,7 @@ WHERE yearid >= 1970
 GROUP BY yearid, teamid, franchname
 ORDER BY largest_wins DESC;
 
+--- second part
 SELECT yearid, teamid, franchname, MIN(w) AS largest_wins
 FROM teams
 LEFT JOIN teamsfranchises
@@ -107,38 +109,47 @@ WHERE yearid >= 1970
 GROUP BY yearid, teamid, franchname
 ORDER BY largest_wins ASC;
 
-SELECT
-    CASE
-        WHEN COUNT(*) > 0 THEN ROUND(COUNT(*) * 100.0 / COUNT(DISTINCT yearID), 2)
-        ELSE 0.00
-    END AS percentage
-FROM (
-    SELECT yearID
-    FROM teams
-    WHERE yearID >= 1970
-      AND yearID <> 1981 
-    GROUP BY yearID
-    HAVING MAX(w) = MIN(w)
-    AND MAX(wswin) = 'Y' 
-) AS most_wins_and_ws;
+--- Union of first and second
+SELECT yearid, teamid, franchname, MAX(w) AS wins, 'Non-World Series Winner' AS result
+FROM teams
+LEFT JOIN teamsfranchises
+USING (franchid)
+WHERE yearid >= 1970
+    AND wswin = 'N'
+GROUP BY yearid, teamid, franchname
+UNION
+SELECT yearid, teamid, franchname, MIN(w) AS wins, 'World Series Winner' AS result
+FROM teams
+LEFT JOIN teamsfranchises
+USING (franchid)
+WHERE yearid >= 1970
+    AND yearid <> 1981
+    AND wswin = 'Y'
+GROUP BY yearid, teamid, franchname
+ORDER BY wins DESC;
 
-----------below is the equivilent of an oragnutan slapping his keyboard-----------
-
+--- Attempt at percentage.
+WITH series_losers AS (SELECT yearid, MAX(w) AS maxwins_series_losers	
+					FROM teams
+						WHERE yearid BETWEEN 1970 AND 2016
+								AND wswin='N'
+					   			AND yearid <> 1981
+					GROUP BY yearid
+					ORDER BY yearid DESC),
+series_winners AS (SELECT yearid, MIN(w) AS minwins_series_winners
+					FROM teams
+						WHERE yearid BETWEEN 1970 AND 2016
+								AND wswin='Y'
+				   				AND yearid <> 1981
+					GROUP BY yearid
+					ORDER BY yearid DESC)				
 SELECT
-    COUNT(*) AS mostw_wswin,
-    ROUND(COUNT(*) * 100.0 / COUNT(DISTINCT yearid), 2) AS percentage
-FROM (
-    SELECT
-        t.yearid,
-        MAX(t.w) AS max_wins,
-        MAX(CASE WHEN s.round = 'WS' THEN 'Y' ELSE 'N' END) AS ws_win
-    FROM teams AS t
-    LEFT JOIN seriespost S ON t.yearid = s.yearid
-    WHERE t.yearID BETWEEN 1970 AND 2016
-      AND t.yearID <> 1981
-    GROUP BY T.yearID
-) AS subquery
-WHERE ws_win = 'Y';
+	ROUND(SUM(CASE WHEN sl.maxwins_series_losers < sw.minwins_series_winners 							THEN 1.00 ELSE 0 END)/COUNT(sw.minwins_series_winners)*100,2) AS percent_of_greater_wins_of_series_winners,
+	ROUND(SUM(CASE WHEN sl.maxwins_series_losers > sw.minwins_series_winners 							THEN 1.00 ELSE 0 END)/COUNT(sl.maxwins_series_losers)*100,2) AS percent_of_greater_wins_of_series_losers,
+	ROUND(SUM(CASE WHEN sl.maxwins_series_losers = sw.minwins_series_winners 							THEN 1.00 ELSE 0 END)/COUNT(sw.minwins_series_winners)*100,2) AS percent_of_tie_between_losers_winners
+FROM series_losers as sl
+JOIN series_winners as sw
+USING (yearid);
 
 -- 8. Using the attendance figures from the homegames table, find the teams and parks which had the top 5 average attendance per game in 2016 (where average attendance is defined as total attendance divided by number of games). Only consider parks where there were at least 10 games played. Report the park name, team name, and average attendance. Repeat for the lowest 5 average attendance.
 
