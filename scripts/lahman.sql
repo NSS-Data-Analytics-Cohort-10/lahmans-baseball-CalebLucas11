@@ -115,6 +115,7 @@ FROM teams
 LEFT JOIN teamsfranchises
 USING (franchid)
 WHERE yearid >= 1970
+	AND yearid <> 1981
     AND wswin = 'N'
 GROUP BY yearid, teamid, franchname
 UNION
@@ -230,11 +231,6 @@ AND p.playerid IN (
     GROUP BY playerid
 );
 
-SELECT *
-FROM awardsmanagers
-WHERE awardid = 'TSN Manager of the Year'
-ORDER BY playerid
-
 -- 10. Find all players who hit their career highest number of home runs in 2016. Consider only players who have played in the league for at least 10 years, and who hit at least one home run in 2016. Report the players' first and last names and the number of home runs they hit in 2016.
 
 SELECT CONCAT(p.namefirst, ' ', p.namelast) AS full_name, hr2016
@@ -260,6 +256,8 @@ WHERE EXISTS (
 -- **Open-ended questions**
 
 -- 11. Is there any correlation between number of wins and team salary? Use data from 2000 and later to answer this question. As you do this analysis, keep in mind that salaries across the whole league tend to increase together, so you may want to look on a year-by-year basis.
+
+---- found CORR function on google, but to be honest im lost as to exactly what its doing. 
 
 WITH WinsSalaries AS (
     SELECT t.yearID, t.teamID, SUM(t.W) AS total_wins, SUM(s.salary) AS total_salary
